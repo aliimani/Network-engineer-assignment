@@ -1,0 +1,19 @@
+#last updated: 04-02-2023
+central_router:
+    address: 172.16.100.2
+    port: default_port
+    key_name: default_key
+    login_user: default_login_user
+    login_password: default_login_password
+site_a_router:
+    address: 172.16.100.3
+    port: default_port
+    key_name: default_key
+    login_user: default_login_user
+    login_password: default_login_password
+site_b_router:
+    address: 172.16.100.4
+    port: default_port
+    key_name: default_key
+    login_user: default_login_user
+    login_password: default_login_password

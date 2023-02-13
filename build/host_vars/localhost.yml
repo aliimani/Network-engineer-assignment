@@ -1,0 +1,129 @@
+images:
+  - name: vyos
+    image: "vyos/image:1.3-rolling"
+    volume: "/lib/modules:/lib/modules"
+    command: "/sbin/init"
+  - name: ubuntu
+    image: "fcastello/ubuntu-network"
+    volume: ""
+    command: "bash"
+
+networks:
+  - name: router_mng
+    driver: bridge
+    enable_ipv6: yes
+    internal: yes
+    subnet_ipv4: 172.16.100.0/24
+    gateway_ipv4: ""
+    subnet_ipv6: 2001:db8::50/125
+  - name: external
+    driver: bridge
+    enable_ipv6: yes
+    internal: no
+    subnet_ipv4: 172.16.0.0/24
+    gateway_ipv4: 172.16.0.1
+    subnet_ipv6: 2001:db8::/125
+  - name: central_site_a
+    driver: macvlan
+    vlan_id: "2"
+    enable_ipv6: yes
+    subnet_ipv4: 172.16.1.0/24
+    gateway_ipv4: 172.16.1.254
+    subnet_ipv6: 2001:0db8::8/125
+  - name: central_site_b
+    driver: macvlan
+    vlan_id: "3"
+    enable_ipv6: yes
+    subnet_ipv4: 172.16.2.0/24
+    gateway_ipv4: 172.16.2.254
+    subnet_ipv6: 2001:0db8::10/125
+  - name: subnet1a
+    driver: macvlan
+    vlan_id: "4"
+    enable_ipv6: yes
+    subnet_ipv4: 10.1.0.0/24
+    gateway_ipv4: ""
+    subnet_ipv6: 2001:0db8::18/125
+  - name: subnet2a
+    driver: macvlan
+    vlan_id: "5"
+    enable_ipv6: yes
+    subnet_ipv4: 10.1.1.0/24
+    gateway_ipv4: ""
+    subnet_ipv6: 2001:0db8::20/125
+  - name: subnet1b
+    driver: macvlan
+    vlan_id: "6"
+    enable_ipv6: yes
+    subnet_ipv4: 10.2.0.0/24
+    gateway_ipv4: ""
+    subnet_ipv6: 2001:0db8::28/125
+  - name: subnet2b
+    driver: macvlan
+    vlan_id: "7"
+    enable_ipv6: yes
+    subnet_ipv4: 10.2.1.0/24
+    gateway_ipv4: ""
+    subnet_ipv6: 2001:0db8::30/125
+
+routers:
+  - name: site_a_router
+    router_os_name: vyos
+    privileged: yes
+    networks:
+    - name: central_site_a
+      ipv4_address: 172.16.1.2
+    - name: subnet1a
+      ipv4_address: none         
+    - name: subnet2a
+      ipv4_address: none
+    - name: router_mng
+      ipv4_address: 172.16.100.3
+  - name: site_b_router
+    router_os_name: vyos
+    privileged: yes
+    networks:
+    - name: central_site_b
+      ipv4_address: 172.16.2.2
+    - name: subnet1b
+      ipv4_address: none        
+    - name: subnet2b
+      ipv4_address: none
+    - name: router_mng
+      ipv4_address: 172.16.100.4
+  - name: central_router
+    router_os_name: vyos
+    privileged: yes
+    networks:
+    - name: external
+      ipv4_address: 172.16.0.2
+    - name: central_site_a
+      ipv4_address: none         
+    - name: central_site_b
+      ipv4_address: none
+    - name: router_mng
+      ipv4_address: 172.16.100.2
+
+hosts:
+  - name: subnet1a_pc
+    host_image_name: ubuntu
+    privileged: yes
+    tty: "true"
+    net_name : subnet1a 
+  - name: subnet2a_pc
+    host_image_name: ubuntu
+    privileged: yes
+    tty: true
+    net_name : subnet2a   
+  - name: subnet1b_pc
+    host_image_name: ubuntu
+    privileged: yes
+    tty: "true"
+    net_name: subnet1b
+  - name: subnet2b_pc
+    host_image_name: ubuntu
+    privileged: yes
+    tty: "true"
+    net_name : subnet2b
+  
+

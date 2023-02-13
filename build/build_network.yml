@@ -1,0 +1,120 @@
+---
+#last updated: 09-02-2023 08:20pm
+# 
+- name: 'Build network'
+  hosts: localhost
+  connection: local
+  vars:
+    vyos: "{{ images[0] }}"
+    ubuntu: "{{ images[1] }}"
+
+
+  tasks:
+
+    - name: Getting active physical interface name
+      ansible.builtin.shell: ip addr show | awk '/inet.*brd/{print $NF; exit}'
+      register: active_interface
+
+    - name: Storing active interface name in a variable
+      set_fact:
+        active_interface_name: "{{ active_interface.stdout_lines }}"
+
+    - name: Creating docker bridge networks
+      community.docker.docker_network:
+          name: "{{ item.name }}"
+          enable_ipv6: "{{ item.enable_ipv6 }}"
+          driver: "{{ item.driver }}"
+          ipam_config:
+          - subnet: "{{ item.subnet_ipv4 }}"
+            gateway: "{{ item.gateway_ipv4 }}"
+          - subnet: "{{ item.subnet_ipv6 }}"
+      register: bridge_output
+      loop: "{{ networks }}"
+      when: item.driver == 'bridge'
+    
+    - name: Creating docker MacVLAN networks
+      community.docker.docker_network:
+        name: "{{ item.name }}"
+        enable_ipv6: "{{ item.enable_ipv6 }}"
+        driver: "{{ item.driver }}"
+        driver_options:
+          parent: "{{ active_interface_name[0] }}.{{ item.vlan_id }}"
+        ipam_config:
+        - subnet: "{{ item.subnet_ipv4 }}"
+          gateway: "{{ item.gateway_ipv4 }}"
+        - subnet: "{{ item.subnet_ipv6 }}"
+      register: macvlan_output
+      loop: "{{ networks }}"
+      when: item.driver == 'macvlan'
+
+    - name: Pulling all required docker images
+      docker_image:
+        name: "{{ vyos.image }}"
+        source: pull
+      register: pull_image_output
+      loop: "{{ images }}"
+
+    - name: Creating VyOS router containers and connect them to the networks
+      community.docker.docker_container:
+        name: "{{ item.name }}"
+        image: "{{ vyos.image }}"
+        volumes:
+          - "{{ vyos.volume }}"
+        privileged: "{{ item.privileged }}"
+        state: stopped
+        labels: 
+          type: "assignment"
+        command: ["{{ vyos.command }}"]
+        networks:
+            - name: "{{ item.networks[0].name }}" 
+              ipv4_address: "{{ item.networks[0].ipv4_address }}"
+            - name: "{{ item.networks[1].name }}"         
+            - name: "{{ item.networks[2].name }}" 
+            - name: "{{ item.networks[3].name }}" #connect to the Manage_routers network
+              ipv4_address: "{{ item.networks[3].ipv4_address }}"
+      register: routers_output
+      loop: "{{ routers }}"
+    
+    - name: Copying predfined config file into VyOS routers
+      ansible.builtin.shell: "docker cp ./config/config.boot {{ item.name }}:/config"
+      register: predfined_output
+      loop: "{{ routers }}"
+
+    - name: Starting all VyOS router containers
+      docker_container:
+        name: "{{ item.name }}"
+        state: started
+      register: start_containers_output
+      loop: "{{ routers }}"
+ 
+    - name: Generating self-signed SSL certificates for all VyoS routers    
+      ansible.builtin.shell: docker exec "{{ item.name }}" bash -c "sudo make-ssl-cert generate-default-snakeoil --force-overwrite"
+      register: selfsigned_cert_output
+      loop: "{{ routers }}"
+
+    - name: Enabling ipv6 on all VyOS routers
+      ansible.builtin.shell: docker exec "{{ item.name }}" bash -c "echo sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0 >>
+                             /config/scripts/vyos-postconfig-bootup.script"
+      register: enable_ipv6_output
+      loop: "{{ routers }}"
+
+    - name: Deleting default gateway from all VyOS routers
+      vars: 
+      ansible.builtin.shell: docker exec "{{ item.name }}" bash -c "echo sudo ip route del default >> 
+                              /config/scripts/vyos-postconfig-bootup.script"
+      register: delete_default_gw_output
+      loop: "{{ routers }}"
+
+    - name: Runnig host containers and connect them to the network
+      community.docker.docker_container:
+        name: "{{ item.name }}"
+        image: "{{ images[1].image }}" 
+        privileged: "{{ item.privileged }}"
+        labels: 
+          type: "assignment"
+        tty: "{{ item.tty }}"
+        command: ["{{ images[1].command }}"]
+        networks:
+          - name : "{{ item.net_name }}"
+      register: hosts_output
+      loop: "{{ hosts }}"

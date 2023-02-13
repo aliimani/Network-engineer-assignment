@@ -1,0 +1,114 @@
+#last updated: 11-02-2023 07:20am
+# 
+system:
+  host-name: Central-Router
+  
+interfaces:
+  ethernet:
+  - name: eth0
+    address: 172.16.1.1/24
+    description: Central_SiteA
+  - name: eth1
+    address: 172.16.2.1/24
+    description: Central_SiteB
+  - name: eth2
+    address: 172.16.0.2/24
+    description: External
+  - name: eth3
+    address: 172.16.100.2/24
+    description: Router_Managment
+  vxlan:
+  - name: vxlan0
+    address: 10.0.0.1/30
+    address_v6: 2001:db8::40/125 
+    description: Central_SiteB_VXLAN
+    group: 239.0.0.241
+    port: "4789"
+    source-interface: eth1
+    remote: 172.16.2.2
+    vni: "10"
+
+protocols:
+  static:
+    route:
+    - network: 0.0.0.0/0
+      next-hop: 172.16.0.1
+    - network: 10.1.0.0/23
+      next-hop: 172.16.1.2
+    - network: 10.2.0.0/23
+      next-hop: 10.0.0.2
+
+nat:
+  source:
+    rules:
+    - rule_id: "10"
+      destination: 10.1.0.0/23
+      exclude: true
+      outbound-interface: eth0
+      source: 10.2.0.0/23
+    # - rule_id: "100"
+    #   outbound-interface: eth0
+    #   source: ACCESS_INTERNET_GROUP
+    #   translation: masquerade
+    - rule_id: "101"
+      outbound-interface: eth2
+      source: 10.1.0.0/24
+      translation: masquerade
+    - rule_id: "102"
+      outbound-interface: eth2
+      source: 10.2.0.0/24
+      translation: masquerade
+vpn:
+  ipsec:
+    esp-group:
+    - name: central-rtr-esp
+      compression: disable
+      lifetime: "1800"
+      mode: tunnel
+      pfs: enable
+      proposal_id: "1"
+      encryption: aes256
+      hash: sha1
+    ike-group:
+    - name: central-rtr-ike
+      ikev2-reauth: "no"
+      key-exchange: ikev1
+      lifetime: "3600"
+      proposal_id: "1"
+      encryption: aes256
+      hash: sha1
+    interface: eth0
+    site-to-site:
+      peer:
+      - name: 172.16.1.2
+        authentication:
+          mode: pre-shared-secret
+          pre-shared-secret: swisscom
+          remote-id: 172.16.1.2
+        ike-group: central-rtr-ike
+        local-address: 172.16.1.1
+        remote-address: 172.16.1.2
+        tunnel:
+        - tunnel_id: "0"
+          esp-group: central-rtr-esp
+          local-prefix: 10.2.0.0/23
+          remote-prefix: 10.1.0.0/23
+
+firewall:
+  network-groups:
+  - name: INT_ACC_GRP
+    network:
+    - 10.1.0.0/24
+    - 10.2.0.0/24
+  interface:
+  - name: eth2
+    out_name: External_OUT
+    in_name: ""
+
+  rules:
+  - name: External_OUT
+    default-action: drop
+    rule_id: "1"
+    action: accept
+    source:
+      network-group: INT_ACC_GRP

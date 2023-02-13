@@ -1,0 +1,60 @@
+#last updated: 11-02-2023 07:20am
+
+system:
+  host-name: SiteB-Router
+
+interfaces:
+  ethernet:
+  - name: eth0
+    address: 172.16.2.2/24
+    description: SiteB_Central
+  - name: eth1
+    address: 172.16.100.4/24
+    description: Router_Managment
+  - name: eth2
+    address: 10.2.0.1/24
+    description: SiteB_Subnet1
+  - name: eth3
+    address: 10.2.1.1/24
+    description: SiteB_Subnet2
+
+  vxlan:
+  - name: vxlan0
+    address: 10.0.0.2/30
+    address_v6: 2001:db8::39/125 
+    description: SiteB_Central_VXLAN
+    group: 239.0.0.241
+    port: "4789"
+    source-interface: eth0
+    remote: 172.16.2.1
+    vni: "10"
+
+protocols:
+  static:
+    route:
+    - network: 0.0.0.0/0
+      next-hop: 10.0.0.1
+
+firewall:
+  interface:
+  - name: eth2
+    in_name: Subnet1B_IN
+    out_name: ""
+  - name: eth3
+    in_name: Subnet2B_IN
+    out_name: ""
+
+  rules:
+  - name: Subnet1B_IN
+    default-action: accept
+    rule_id: "1"
+    action: drop
+    destination: 10.1.1.0/24
+    source: 10.2.0.0/24
+
+  - name: Subnet2B_IN
+    default-action: accept
+    rule_id: "2"
+    action: drop
+    destination: 10.1.0.0/24
+    source: 10.2.1.0/24
